@@ -1,0 +1,63 @@
+import os
+import requests
+
+# Mock GitHub Token (for demonstration purposes only)
+# Replace this with your actual token for real use
+GITHUB_TOKEN = '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'  # Your mock GitHub token
+
+# GitHub Username and Repository
+GITHUB_USERNAME = 'baronseay'  # Your mock GitHub username
+REPO_NAME = 'codespaces-blank'  # Your mock GitHub repository name
+
+# GitHub API URL to interact with GitHub API
+API_URL = f"https://api.github.com/repos/{GITHUB_USERNAME}/{REPO_NAME}"
+
+# Headers for authentication with GitHub API
+headers = {
+    'Authorization': f'token {GITHUB_TOKEN}',
+    'Accept': 'application/vnd.github.v3+json'
+}
+
+# Fetch repo details using the GitHub API
+def fetch_repo_details():
+    response = requests.get(API_URL, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        print(f"Repository Details for {REPO_NAME}:")
+        print(f"Name: {data['name']}")
+        print(f"Description: {data.get('description', 'No description available')}")
+        print(f"URL: {data['html_url']}")
+    else:
+        print(f"Failed to fetch repo details: {response.status_code}")
+
+# Create a release on GitHub with an optional pre-release version
+def create_release(tag_name, release_name, description, pre_release=False):
+    release_url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{REPO_NAME}/releases"
+    release_data = {
+        'tag_name': tag_name,
+        'name': release_name,
+        'body': description,
+        'draft': False,
+        'prerelease': pre_release
+    }
+
+    response = requests.post(release_url, headers=headers, json=release_data)
+    if response.status_code == 201:
+        print(f"Release '{release_name}' created successfully!")
+        print(f"Release URL: {response.json()['html_url']}")
+    else:
+        print(f"Failed to create release: {response.status_code}")
+        print(response.text)
+
+if __name__ == '__main__':
+    # Fetch the repo details
+    fetch_repo_details()
+
+    # Optionally create a release (you can change the values of the parameters)
+    # For example, creating a pre-release version:
+    create_release(
+        tag_name="v1.0.0-alpha",
+        release_name="Version 1.0.0 Alpha Release",
+        description="This is an alpha release of the repository.",
+        pre_release=True
+    )
