@@ -1,0 +1,31 @@
+// server.js
+const express = require('express');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(bodyParser.json());
+
+// Connect to MongoDB
+mongoose.connect('mongodb://mongo:27017/mydb', { useNewUrlParser: true, useUnifiedTopology: true });
+
+// Define a schema and model
+const Data = mongoose.model('Data', new mongoose.Schema({ name: String, value: Number }));
+
+// POST endpoint to save data
+app.post('/data', async (req, res) => {
+  const { name, value } = req.body;
+  if (!name || !value) {
+    return res.status(400).json({ error: 'Invalid data' });
+  }
+  
+  const data = new Data({ name, value });
+  await data.save();
+  res.status(201).json(data);
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
