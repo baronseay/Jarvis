@@ -1,0 +1,75 @@
+name: Build and Deploy Jarvis
+
+on:
+  push:
+    branches: [ main ]  # Trigger on push to the main branch
+  pull_request:
+    branches: [ main ]  # Trigger on pull request to the main branch
+
+env:
+  GITHUB_SHA: ${{ github.sha }}
+  IBM_CLOUD_API_KEY: ${{ secrets.IBM_CLOUD_API_KEY }}
+  IBM_CLOUD_REGION: us-south
+  ICR_NAMESPACE: ${{ secrets.ICR_NAMESPACE }}
+  REGISTRY_HOSTNAME: us.icr.io
+  IMAGE_NAME: jarvis
+  IKS_CLUSTER: ${{ secrets.IKS_CLUSTER }}
+  DEPLOYMENT_NAME: jarvis-deployment
+  PORT: 5001
+
+jobs:
+  setup-build-publish-deploy:
+    name: Setup, Build, Publish, and Deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Install dependencies (Docker, IBM Cloud CLI)
+    - name: Install IBM Cloud CLI and Docker
+      run: |
+        curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+        ibmcloud --version
+        ibmcloud config --check-version=false
+        ibmcloud plugin install -f kubernetes-service
+        ibmcloud plugin install -f container-registry
+        sudo apt-get update && sudo apt-get install -y docker.io
+        sudo systemctl enable --now docker
+
+    # Authenticate with IBM Cloud CLI
+    - name: Authenticate with IBM Cloud CLI
+      run: |
+        ibmcloud login --apikey "${IBM_CLOUD_API_KEY}" -r "${IBM_CLOUD_REGION}" -g default
+        ibmcloud cr region-set "${IBM_CLOUD_REGION}"
+        ibmcloud cr login
+
+    # Build the Docker image for Jarvis
+    - name: Build Docker Image
+      run: |
+        docker build -t "$REGISTRY_HOSTNAME"/"$ICR_NAMESPACE"/"$IMAGE_NAME":"$GITHUB_SHA" .
+      
+    # Push the Docker image to the IBM Container Registry (ICR)
+    - name: Push Docker Image to IBM Container Registry
+      run: |
+        docker push $REGISTRY_HOSTNAME/$ICR_NAMESPACE/$IMAGE_NAME:$GITHUB_SHA
+
+    # Deploy the Docker image to the IKS cluster
+    - name: Deploy to IKS Cluster
+      run: |
+        ibmcloud ks cluster config --cluster $IKS_CLUSTER
+        kubectl config current-context
+        kubectl create deployment $DEPLOYMENT_NAME --image=$REGISTRY_HOSTNAME/$ICR_NAMESPACE/$IMAGE_NAME:$GITHUB_SHA --dry-run -o yaml > deployment.yaml
+        kubectl apply -f deployment.yaml
+        kubectl rollout status deployment/$DEPLOYMENT_NAME
+        kubectl create service loadbalancer $DEPLOYMENT_NAME --tcp=80:$PORT --dry-run -o yaml > service.yaml
+        kubectl apply -f service.yaml
+
+    # Health Check (Post-deployment verification)
+    - name: Health Check
+      run: |
+        kubectl get pods
+        kubectl describe deployment $DEPLOYMENT_NAME
+        kubectl get services
+        curl --fail http://localhost:$PORT || exit 1
