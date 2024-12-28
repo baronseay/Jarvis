@@ -1,0 +1,34 @@
+name: Deploy Nexus with Custom DNS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Set custom DNS servers
+        run: |
+          echo "nameserver 75.75.75.75" | sudo tee /etc/resolv.conf
+          echo "nameserver 75.75.76.76" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 2001:558:feed::1" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 2001:558:feed::2" | sudo tee -a /etc/resolv.conf
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Python script
+        run: |
+          python your_script.py
